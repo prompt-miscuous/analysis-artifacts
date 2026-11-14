@@ -184,7 +184,7 @@ Cada archivo de imagen espectral corresponde a la exposición de un detector ind
 | --- | --- | --- | --- |
 | **Extensión 0** | `PRIMARY` | Sin matriz (`NAXIS=0`) | Cabecera global FITS con metadatos de la observación, apuntamiento, tiempos y telemetría general `[VERIFICADO]`. |
 | **Extensión 1** | `IMAGE` | Imagen $2040 \times 2040$ (Float32) | **Imagen espectral calibrada:** Matriz de brillo superficial medido en cada píxel ($\text{MJy/sr}$) más su cabecera WCS espacial `[VERIFICADO]`. |
-| **Extensión 2** | `FLAGS` | Imagen $2040 \times 2040$ (QR2) / `BINTABLE` (QR3) | **Banderas de estado y procesamiento (*Bitmask*):** Máscara de bits por píxel que señala anomalías (rayos cósmicos, saturación, píxeles muertos, atenuación del dicroico, etc.) `[VERIFICADO]`. |
+| **Extensión 2** | `FLAGS` | Imagen $2040 \times 2040$ (QR2) / imagen comprimida `CompImageHDU` int32 $2040 \times 2040$ (QR3) | **Banderas de estado y procesamiento (*Bitmask*):** Máscara de bits por píxel que señala anomalías (rayos cósmicos, saturación, píxeles muertos, atenuación del dicroico, etc.) `[VERIFICADO]`. En QR3 el HDU es imagen comprimida, no `BINTABLE` `[OBSERVADO 2026-10-29]` (ver §5.3). |
 | **Extensión 3** | `VARIANCE` | Imagen $2040 \times 2040$ (Float32) | **Mapa de varianza:** Incertidumbre estadística al cuadrado ($\sigma^2$) asociada al flujo de cada píxel, combinando ruido fotónico de Poisson y ruido de lectura `[VERIFICADO]`. |
 | **Extensión 4** | `ZODI` | Imagen $2040 \times 2040$ (Float32) | **Modelo de luz zodiacal:** Estimación modelada en cada píxel del brillo de fondo difuso producido por la dispersión solar y emisión térmica del polvo interplanetario `[VERIFICADO]`. |
 | **Extensión 5** | `PSF` (QR2) / `EPSF` (QR3) | Cubo 3D (QR2) / `BINTABLE` (QR3) | **Función de Dispersión de Punto promediada por exposición:** En **QR2** contiene un cubo FITS de $101 \times 101 \times 121$ ($10\times$ sobremuestreo, $0.615''/\text{px}$); en **QR3** contiene una tabla binaria (`BINTABLE`) con ePSFs de $33 \times 33$ píxeles ($5\times$ sobremuestreo) dividida en rejillas espaciales (21x21 zonas en D1, D2, D4-D6; 11x41 en D3) `[VERIFICADO]`. |
@@ -285,3 +285,82 @@ Tras auditar las dudas planteadas en la sección preliminar mediante consultas d
    * El prefijo histórico `qr/` (o `qr1/`) fue completamente purgado del almacenamiento público en S3 tras su retiro en febrero de 2026.
 4. **Número exacto de canales espectrales individuales asignados a cada una de las 6 bandas: `[RESUELTO Y CONFIRMADO]`**
    * Cada una de las 6 bandas detectoras cuenta exactamente con **17 canales espectrales nominales**, totalizando los **102 canales** de la misión ($6 \times 17 = 102$). Cada canal es muestreado espacialmente a través de las columnas de los filtros LVF durante las secuencias de pequeños saltos (*small slews*).
+
+---
+
+## PARTE 5: INVENTARIO OBSERVADO DEL BUCKET (verificación directa 2026-10-29)
+
+El 2026-10-29 se auditó el contenido real del bucket con AWS CLI anónimo y se descargó
+y abrió un FITS de ciencia. Todo lo marcado `[OBSERVADO 2026-10-29]` proviene de esa
+inspección; corrige o precisa la documentación donde difiere. El inventario narrado
+completo vive en [../inventario-bucket-spherex-qr2-qr3.md](../inventario-bucket-spherex-qr2-qr3.md).
+
+### 5.1 Conteos y cobertura temporal `[OBSERVADO 2026-10-29]`
+
+* **QR2:** 129 carpetas semanales, de `2025W17_4B` a `2026W29_2A`.
+* **QR3:** 18 carpetas semanales, de `2026W30_1B` a `2026W38_2A` (sigue creciendo).
+* **Densidad:** una versión de procesador de una semana QR3 contiene **10 826 FITS**
+  de ~63 MB (≈ 670 GB por semana-versión); un detector de una semana QR2 contiene
+  **1 786 FITS** de ~68 MB (≈ 120 GB por detector y semana).
+* **Versiones de pipeline observadas:** `l2b-v20-*` en semanas tempranas de QR2,
+  `l2b-v25-2026-206` en la semana QR2 más reciente (`2026W29_2A`), `l2b-v27-*` en QR3.
+  Algunas semanas QR3 traen dos versiones (`l2b-v27-…` y `l2b_retry-v27-…`): son
+  reprocesados; ante la duda se usa la más reciente.
+
+### 5.2 Decodificación del nombre de archivo `[OBSERVADO 2026-10-29]`
+
+```text
+level2_2026W30_1B_0001_1D1_spx_l2b-v27-2026-222.fits
+         │        │    │  │ │   └── fecha de procesado (día juliano 222 de 2026)
+         │        │    │  │ └────── versión del pipeline (`l2b-v27`…)
+         │        │    │  └──────── sufijo de misión/instrumento
+         │        │    └─────────── detector (D1 … D6, coincide con la carpeta)
+         │        └────────────── contadores de maniobra: grande `0001`, pequeña `1`
+         └────────────────────── periodo de planificación del sondeo (semana ISO + plan)
+```
+
+Definición oficial (`[IRSA Data Products](https://caltech-ipac.github.io/spherex-archive-documentation/spherex-data-products/)`):
+formato `level2_[Observation ID]D[Detector]_spx_l2b_v[Version]_[Processing Date].fits`,
+donde el *Observation ID* incluye el periodo de planificación y los contadores de
+maniobra grande y pequeña (ejemplo documentado: `2025W18_2B_0001_1` = periodo
+`2025W18_2B` + large slew `0001` + small slew `1`). Cada maniobra grande admite un
+máximo de 4 pequeñas (rango 1–4); algunas traen menos `[RESUELTO Y CONFIRMADO]`.
+Verificación en el bucket: la exposición `0001` del detector 1 trae `1D1, 2D1, 3D1,
+4D1` (las 4), la `0005` solo `1D1` y la `0007` trae `1D1, 2D1, 3D1` `[OBSERVADO 2026-10-29]`.
+Además: por cada apuntamiento hay 6 MEFs (uno por detector), aunque algunas
+observaciones no incluyen las 6 bandas por control de calidad.
+
+### 5.3 Un FITS real, descargado y abierto `[OBSERVADO 2026-10-29]`
+
+Archivo `qr3/level2/2026W30_1B/l2b-v27-2026-222/1/level2_2026W30_1B_0001_1D1_spx_l2b-v27-2026-222.fits`
+(62,8 MB), abierto con astropy:
+
+| HDU | Nombre | Tipo real | Dimensiones |
+| --- | --- | --- | --- |
+| 0 | `PRIMARY` | Primario, 5 cartas | sin datos (solo `VERSION` del pipeline 7.0.5) |
+| 1 | `IMAGE` | Imagen Float32 | $2040 \times 2040$ |
+| 2 | `FLAGS` | Imagen comprimida int32 | $2040 \times 2040$ |
+| 3 | `VARIANCE` | Imagen Float32 | $2040 \times 2040$ |
+| 4 | `ZODI` | Imagen Float32 | $2040 \times 2040$ |
+| 5 | `EPSF` | Tabla binaria | 441 filas × 11 columnas |
+| 6 | `WCS-WAVE` | Tabla binaria | 1 fila × 3 columnas |
+
+* **Apuntamiento y fecha:** en la cabecera de `IMAGE` (no en el primario):
+  `CRVAL1 = 232.66°`, `CRVAL2 = −10.72°`, `DATE-OBS = 2026-07-20T00:06:53`,
+  `DETECTOR = 1` (coherente con la semana `2026W30`).
+* **Estadística de `IMAGE`:** mediana del fondo ≈ 0,28 MJy/sr, percentil 99 ≈ 1,14,
+  máximo ≈ 4 230 (fuentes puntuales); 121 NaN y 2 767 negativos sobre 4,16 M píxeles.
+* **Bits de `FLAGS`:** el 51,2 % de píxeles vale 0, pero el 45,5 % porta solo el bit
+  `0x200000` (2 097 152), presumiblemente benigno; el resto se reparte en 70 valores
+  distintos. Conclusión: **no enmascarar todo `!= 0`**; hay que leer el
+  *Explanatory Supplement* para saber qué bits descartan de verdad.
+* **Corrección a §2.4:** en QR3 `FLAGS` es `CompImageHDU`, no `BINTABLE`.
+
+### 5.4 Renderizado de prueba `[OBSERVADO 2026-10-29]`
+
+El FITS anterior se convirtió a la vista previa
+[spherex-D1-image-preview.png](spherex-D1-image-preview.png) (campo de estrellas real,
+más una banda horizontal brillante pendiente de caracterizar contra `FLAGS`).
+Receta mínima que funciona: estiramiento `arcsinh` alrededor del fondo (el rango
+0,3 → 4 000 aplasta cualquier estiramiento lineal) y *max-pool* 4× antes de reescalar
+(ver comandos en el inventario compañero).
