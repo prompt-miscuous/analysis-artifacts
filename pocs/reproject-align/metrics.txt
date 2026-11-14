@@ -1,0 +1,4 @@
+median_offset_px=0.112
+matched_pairs=3
+threshold_px=1.5
+result=PASS

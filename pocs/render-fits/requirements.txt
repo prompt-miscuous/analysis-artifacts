@@ -1,3 +1,6 @@
 astropy
 numpy
 matplotlib
+pillow
+reproject
+scipy
