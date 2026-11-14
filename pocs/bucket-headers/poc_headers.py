@@ -23,7 +23,6 @@ WEEKS = [
 ]
 RANGE_BYTES = 65536
 
-
 def list_keys(prefix, limit):
     """Lista claves .fits del prefijo vía ListObjectsV2 anónimo."""
     keys, token = [], None
@@ -46,14 +45,12 @@ def list_keys(prefix, limit):
             break
     return keys[:limit]
 
-
 def read_image_header(key):
     r = httpx.get(f"{BUCKET}/{key}",
                   headers={"Range": f"bytes=0-{RANGE_BYTES - 1}"},
                   timeout=60)
     r.raise_for_status()
     return r.content
-
 
 def footprint(header_bytes):
     with fits.open(io.BytesIO(header_bytes)) as hdul:
@@ -65,7 +62,6 @@ def footprint(header_bytes):
         center = w.all_pix2world([[nx / 2, ny / 2]], 0)[0]
         mjd = Time(hdr["DATE-OBS"]).mjd
     return center, corners, mjd
-
 
 def main():
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 20
@@ -95,7 +91,6 @@ def main():
               f"{np.mean(sizes)/1024:.0f} KB/archivo")
         print(f"extrapolacion: 10.900 arch/semana -> "
               f"{10900 * med / 60:.1f} min/semana (secuencial)")
-
 
 if __name__ == "__main__":
     main()
